@@ -6,8 +6,6 @@ name: Docker
 # documentation.
 
 on:
-  workflow_dispatch:
-
   push:
     tags: [ 'v*.*.*' ]
 env:

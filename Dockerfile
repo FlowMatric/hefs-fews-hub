@@ -57,7 +57,7 @@ RUN export PATH=${NB_PYTHON_PREFIX}/bin:${PATH} \
         https://github.com/jupyterhub/jupyter-remote-desktop-proxy/archive/main.zip
 
 # Install TEEHR
-RUN pip install 'teehr @ git+https://github.com/RTIInternational/teehr@v0.4-beta'
+RUN pip install --no-cache-dir teehr
 
 # Install git-lfs
 RUN apt-get update && apt-get install git-lfs -y

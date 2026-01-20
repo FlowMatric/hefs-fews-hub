@@ -8,10 +8,32 @@ git push origin v0.x.x
 ```
 
 ## Build and run locally
+
+### Using Docker Compose (recommended)
+```bash
+# Start JupyterLab with integrated remote desktop
+docker compose up --build
+
+# Access JupyterLab at: http://localhost:8888
+# Access the remote desktop via JupyterLab: http://localhost:8888/desktop
+# (Click "Desktop" icon in JupyterLab launcher)
+
+# Stop services
+docker compose down
+```
+
+### Manual Docker commands
 From the repo root:
 ```bash
-docker build -t hefs-hub .
-docker run -it --rm -p 8888:8888 hefs-hub:latest jupyter lab --ip 0.0.0.0
+DOCKER_BUILDKIT=1 docker build --progress=plain -t hefs-hub .
+
+# Run JupyterLab (includes integrated remote desktop via jupyter-remote-desktop-proxy)
+docker run -it --rm -p 8888:8888 hefs-hub:latest \
+  jupyter lab --ip=0.0.0.0 --port=8888 --no-browser \
+  --NotebookApp.token='' --NotebookApp.password=''
+
+# For interactive shell access
+docker run -it --rm -p 8888:8888 hefs-hub:latest /bin/bash
 ```
 
 You can pass in your AWS credentials for local testing as well during the docker build:

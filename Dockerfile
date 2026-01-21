@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/dnf \
 
 # Install XFCE components individually to save space
 RUN --mount=type=cache,target=/var/cache/dnf \
-    dnf install -y \
+    dnf install -y --enablerepo=epel \
     dbus-x11 \
     xfce4-session \
     xfce4-panel \
@@ -21,6 +21,9 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     xfdesktop \
     xfwm4 \
     xfce4-terminal \
+    xfce-polkit \
+    featherpad \
+    nano \
     Thunar \
     xorg-x11-server-Xorg \
     xorg-x11-xinit \
@@ -62,7 +65,7 @@ RUN --mount=type=cache,target=/root/.conda/pkgs \
 ENV CONDA_ENV=notebook
 RUN --mount=type=cache,target=/root/.conda/pkgs \
     mamba create -n ${CONDA_ENV} -y python=3.11 \
-    && mamba install -n ${CONDA_ENV} -y websockify ipywidgets-bokeh jupyterlab voila -c conda-forge
+    && mamba install -n ${CONDA_ENV} -y websockify ipywidgets-bokeh jupyterlab panel awscli -c conda-forge
 
 # Activate conda environment by default
 ENV NB_PYTHON_PREFIX=${CONDA_DIR}/envs/${CONDA_ENV}
@@ -91,10 +94,6 @@ RUN echo '#!/bin/sh' > ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_
     && echo 'exec /usr/bin/xfce4-session' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
     && chmod +x ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup
 
-# Install TEEHR
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir teehr
-
 # Create jovyan user
 ARG NB_USER=jovyan
 ARG NB_UID=1000
@@ -104,20 +103,24 @@ RUN groupadd -g ${NB_GID} ${NB_USER} || true \
     && mkdir -p /home/${NB_USER}
 
 # Copy in FEWS binaries from local directory
-COPY fews/fews-NA-202102-115469-bin.zip /opt/fews/fews-NA-202102-115469-bin.zip
+COPY lib/fews/fews-NA-202102-115469-bin.zip /opt/fews/fews-NA-202102-115469-bin.zip
 RUN unzip /opt/fews/fews-NA-202102-115469-bin.zip -d /opt/fews/ \
     && chown -R ${NB_USER}:${NB_GID} /opt/fews
 
 # Panel dashboard setup
-COPY playground/panel_dashboard.py playground/dashboard_funcs.py playground/start_dashboard.sh /opt/hefs_fews_dashboard/
-COPY playground/geo/rfc_boundaries.geojson /opt/hefs_fews_dashboard/rfc_boundaries.geojson
-COPY images/dashboard_icon2.png /opt/hefs_fews_dashboard/dashboard_icon2.png
-COPY images/CIROHLogo_200x200.png /opt/hefs_fews_dashboard/CIROHLogo_200x200.png
-COPY scripts/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
+COPY lib/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
+COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
+
+# Install HEFS FEWS Hub with TEEHR dependency
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
+
+# Copy icon to standard location
+RUN mkdir -p /usr/share/pixmaps \
+    && python -c "import hefs_fews_hub; import shutil; from pathlib import Path; pkg_path = Path(hefs_fews_hub.__file__).parent; shutil.copy(pkg_path / 'images/dashboard_icon2.png', '/usr/share/pixmaps/dashboard_icon2.png')"
 
 RUN chown -R ${NB_USER}:${NB_GID} /opt/hefs_fews_dashboard \
-    && chmod +x /opt/hefs_fews_dashboard/start_dashboard.sh \
-    && chmod +x /opt/hefs_fews_dashboard/dashboard.desktop
+&& chmod +x /opt/hefs_fews_dashboard/dashboard.desktop
 
 # Install dashboard.desktop to XFCE applications menu
 RUN mkdir -p /home/${NB_USER}/.local/share/applications \
@@ -134,10 +137,19 @@ RUN mkdir -p /home/${NB_USER}/.vnc \
     && echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'export XDG_SESSION_TYPE=x11' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'export XDG_CURRENT_DESKTOP=XFCE' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
+    && echo '/usr/libexec/xfce-polkit &' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'dbus-launch --exit-with-session startxfce4 &' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && chmod +x /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/.vnc
 
+# Copy entrypoint script for AWS configuration
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 USER ${NB_USER}
 
 WORKDIR /home/jovyan
+
+# Set entrypoint to handle AWS configuration
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--NotebookApp.token=", "--NotebookApp.password="]

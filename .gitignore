@@ -162,3 +162,13 @@ cython_debug/
 #.idea/
 
 .env/
+
+# Environment files with credentials
+.env
+*.env
+!.env.example
+
+# AWS credentials (backup protection)
+.aws/
+credentials
+config

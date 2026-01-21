@@ -4,7 +4,7 @@ from pathlib import Path
 import panel as pn
 from ipyleaflet import Map, GeoJSON
 
-from dashboard_funcs import (
+from hefs_fews_hub.dashboard_funcs import (
     create_start_standalone_command,
     write_shell_file,
     s3_download_file,
@@ -16,8 +16,7 @@ from dashboard_funcs import (
 pn.extension("ipywidgets", sizing_mode="stretch_width")
 
 ACCENT_BASE_COLOR = "#5d6d7e"
-
-RFC_BOUNDARIES = "/opt/hefs_fews_dashboard/rfc_boundaries.geojson"
+RFC_BOUNDARIES = Path(__file__).parent / "geo" / "rfc_boundaries.geojson"
 FEWS_INSTALL_DIR = Path("/opt", "fews")
 MAP_CENTER_X = 38.80
 MAP_CENTER_Y = -99.14
@@ -198,10 +197,11 @@ column = pn.Column(
     pn.Row(indeterminate)
 )
 
+logo_path = Path(__file__).parent / "images" / "CIROHLogo_200x200.png"
 template = pn.template.FastListTemplate(
     site="HEFS-FEWS",
     title="Exploration System Dashboard",
-    logo="https://ciroh.ua.edu/wp-content/uploads/2022/08/CIROHLogo_200x200.png",
+    logo=str(logo_path),
     header_background=ACCENT_BASE_COLOR,
     accent_base_color=ACCENT_BASE_COLOR,
     main=[column],

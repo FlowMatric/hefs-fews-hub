@@ -25,7 +25,7 @@ docker compose down
 ### Manual Docker commands
 From the repo root:
 ```bash
-DOCKER_BUILDKIT=1 docker build --progress=plain -t hefs-hub .
+DOCKER_BUILDKIT=1 docker build -t hefs-hub .
 
 # Run JupyterLab (includes integrated remote desktop via jupyter-remote-desktop-proxy)
 docker run -it --rm -p 8888:8888 hefs-hub:latest \

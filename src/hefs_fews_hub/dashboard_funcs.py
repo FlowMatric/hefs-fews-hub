@@ -1,4 +1,5 @@
 """Utility functions for the RTI HEFS dashboard."""
+import contextlib
 import os
 from pathlib import Path
 import shutil
@@ -7,13 +8,12 @@ from concurrent import futures
 import subprocess
 import logging
 
-import boto3
+with contextlib.suppress(ImportError):
+    import boto3
+    s3_client = boto3.client('s3')
 
 BUCKET_NAME = "ciroh-rti-hefs-data"
 FEWS_INSTALL_DIR = Path("/opt", "fews")
-
-s3_client = boto3.client('s3')
-
 
 def set_up_logger(file_path: Union[str, Path]) -> logging.Logger:
     """Set up a logger for the dashboard."""

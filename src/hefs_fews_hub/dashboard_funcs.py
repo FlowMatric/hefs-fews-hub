@@ -8,9 +8,11 @@ from concurrent import futures
 import subprocess
 import logging
 
+logger = logging.getLogger("HEFS-Dashboard")
+
 with contextlib.suppress(ImportError):
-    import boto3
-    s3_client = boto3.client('s3')
+    import s3fs
+    s3 = s3fs.S3FileSystem(anon=False)
 
 BUCKET_NAME = "ciroh-rti-hefs-data"
 FEWS_INSTALL_DIR = Path("/opt", "fews")
@@ -93,10 +95,8 @@ def write_fews_desktop_shortcut(
 def s3_download_file(remote_filepath: str, local_filepath: str) -> None:
     """Download a file from an S3 bucket."""
     Path(local_filepath).parent.mkdir(exist_ok=True, parents=True)
-    s3 = boto3.client('s3')
-    s3.download_file(
-        BUCKET_NAME, remote_filepath, local_filepath
-    )
+    s3_path = f"{BUCKET_NAME}/{remote_filepath}"
+    s3.get(s3_path, local_filepath)
     return
 
 
@@ -117,43 +117,35 @@ def s3_download_directory_cli(prefix, local, bucket=BUCKET_NAME):
 
 
 def s3_download_directory(prefix, local, bucket=BUCKET_NAME):
-    """Download a directory from an S3 bucket using boto3."""
-    client = boto3.client('s3')
-
-    def create_folder_and_download_file(k):
-        dest_pathname = os.path.join(local, k)
-        if not os.path.exists(os.path.dirname(dest_pathname)):
-            os.makedirs(os.path.dirname(dest_pathname))
-        # print(f'downloading {k} to {dest_pathname}')
-        client.download_file(bucket, k, dest_pathname)
-
-    keys = []
-    dirs = []
-    next_token = ''
-    base_kwargs = {
-        'Bucket': bucket,
-        'Prefix': prefix,
-    }
-    while next_token is not None:
-        kwargs = base_kwargs.copy()
-        if next_token != '':
-            kwargs.update({'ContinuationToken': next_token})
-        results = client.list_objects_v2(**kwargs)
-        contents = results.get('Contents')
-        for i in contents:
-            k = i.get('Key')
-            if k[-1] != '/':
-                keys.append(k)
-            else:
-                dirs.append(k)
-        next_token = results.get('NextContinuationToken')
-    for d in dirs:
-        dest_pathname = os.path.join(local, d)
-        if not os.path.exists(os.path.dirname(dest_pathname)):
-            os.makedirs(os.path.dirname(dest_pathname))
+    """Download a directory from an S3 bucket using s3fs."""
+    # Ensure local directory exists
+    Path(local).mkdir(exist_ok=True, parents=True)
+    
+    # Construct S3 path
+    s3_path = f"{bucket}/{prefix}"
+    
+    # Get all files in the directory
+    files = s3.glob(f"{s3_path}/**")
+    
+    def download_file(s3_file):
+        # Skip directories
+        if s3_file.endswith('/'):
+            return
+        
+        # Calculate relative path and local destination
+        relative_path = s3_file.replace(f"{bucket}/{prefix}", "").lstrip('/')
+        dest_pathname = os.path.join(local, relative_path)
+        
+        # Create parent directory if needed
+        os.makedirs(os.path.dirname(dest_pathname), exist_ok=True)
+        
+        # Download file
+        s3.get(s3_file, dest_pathname)
+    
+    # Download files in parallel
     with futures.ThreadPoolExecutor() as executor:
         futures.wait(
-            [executor.submit(create_folder_and_download_file, k) for k in keys],
+            [executor.submit(download_file, f) for f in files],
             return_when=futures.FIRST_EXCEPTION,
         )
     print("Download complete.")
@@ -161,13 +153,64 @@ def s3_download_directory(prefix, local, bucket=BUCKET_NAME):
 
 def s3_list_contents(prefix: str) -> List[str]:
     """List the contents of an S3 bucket."""
-    s3 = boto3.client('s3')
-    response = s3.list_objects_v2(
-        Bucket=BUCKET_NAME,
-        Prefix=prefix
-    )
-    filelist = [content["Key"] for content in response["Contents"]]
+    s3_path = f"{BUCKET_NAME}/{prefix}"
+    files = s3.ls(s3_path, detail=False)
+    # Remove bucket name from paths to match original behavior
+    filelist = [f.replace(f"{BUCKET_NAME}/", "") for f in files]
     return filelist
+
+
+def install_fews_standalone(download_dir: str, rfc: str) -> None:
+    """Download standalone configuration from S3 to the working directory."""
+    fews_download_dir = Path(download_dir)
+    if not fews_download_dir.exists():
+        logger.info(f"The directory: {fews_download_dir}, does not exist. Please create it first!")
+        raise ValueError(f"The directory: {fews_download_dir}, does not exist. Please create it first!")
+
+    # 1. Download sa from S3
+    logger.info(f"Downloading {rfc} configuration to {fews_download_dir.as_posix()}...This will take a few minutes...")
+    s3_download_directory_cli(
+        prefix=f"{rfc}/Config",
+        local=Path(fews_download_dir, f"{rfc}/Config").as_posix(),
+    )
+    # 2. Create the bash command to run the standalone configuration
+    logger.info("Creating bash command to start FEWS...")
+    sa_dir_path = Path(fews_download_dir, rfc)
+    bash_command_str = create_start_standalone_command(
+        fews_root_dir=FEWS_INSTALL_DIR.as_posix(),
+        configuration_dir=sa_dir_path.as_posix()
+    )
+    # 3. Write the command to start FEWS to a shell script
+    logger.info("Writing shell script to start FEWS...")
+    shell_script_filepath = Path(sa_dir_path, "start_fews_standalone.sh")
+    write_shell_file(shell_script_filepath, bash_command_str)
+
+    # 4. Copy in patch file for the downloaded standalone config.
+    logger.info("Downloading patch file and global properties...")
+    s3_download_file(
+        remote_filepath="fews-install/fews-NA-202102-125264-patch.jar",
+        local_filepath=Path(sa_dir_path, "fews-NA-202102-125264-patch.jar")
+    )
+    logger.info("Downloading sa_global.properties...Temporarily to Config dir.")
+    s3_download_file(
+        remote_filepath=f"{rfc}/sa_global.properties",
+        local_filepath=Path(sa_dir_path, "Config", "sa_global.properties")
+    )
+    # 5. Create FEWS desktop shortcut that calls the shell script
+    desktop_shortcut_filepath = Path(
+        Path.home(),
+        "Desktop",
+        f"{sa_dir_path.name}.desktop"
+    )
+    logger.info(f"Creating FEWS desktop shortcut...{desktop_shortcut_filepath}")
+    write_fews_desktop_shortcut(
+        desktop_shortcut_filepath,
+        shell_script_filepath,
+        rfc
+    )
+    logger.info("Installation complete.")
+    return
+
 
 
 # if __name__ == "__main__":

@@ -21,7 +21,6 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     xfdesktop \
     xfwm4 \
     xfce4-terminal \
-    xfce-polkit \
     featherpad \
     nano \
     Thunar \
@@ -38,14 +37,11 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     unzip && \
     dnf clean all
 
-# Install Node.js and npm
-RUN curl -sL https://rpm.nodesource.com/setup_20.x | bash - \
-    && dnf install -y nodejs
-
 # Install TurboVNC (https://github.com/TurboVNC/turbovnc)
 ARG TURBOVNC_VERSION=3.1
-RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
-    && dnf install -y turbovnc.rpm \
+# RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
+COPY lib/turbovnc-3.1.x86_64.rpm turbovnc.rpm
+RUN dnf install -y turbovnc.rpm \
     && rm turbovnc.rpm \
     && ln -s /opt/TurboVNC/bin/* /usr/local/bin/
 
@@ -57,25 +53,31 @@ RUN --mount=type=cache,target=/root/.conda/pkgs \
     && bash /tmp/miniconda.sh -b -p ${CONDA_DIR} \
     && rm /tmp/miniconda.sh \
     && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
-    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r \
-    && conda install -y mamba -c conda-forge \
-    && mamba clean -afy
+    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
 # Create conda environment and install packages
 ENV CONDA_ENV=notebook
 RUN --mount=type=cache,target=/root/.conda/pkgs \
-    mamba create -n ${CONDA_ENV} -y python=3.11 \
-    && mamba install -n ${CONDA_ENV} -y websockify ipywidgets-bokeh jupyterlab panel awscli -c conda-forge
+    conda create -n ${CONDA_ENV} -y python=3.11 \
+    && conda install -n ${CONDA_ENV} -y -c conda-forge \
+    websockify \
+    jupyterlab \
+    awscli
 
 # Activate conda environment by default
 ENV NB_PYTHON_PREFIX=${CONDA_DIR}/envs/${CONDA_ENV}
 ENV PATH=${NB_PYTHON_PREFIX}/bin:${PATH}
+# Install Node.js and npm
+RUN curl -sL https://rpm.nodesource.com/setup_20.x | bash - \
+    && dnf install -y nodejs \
+    && npm install -g npm@7.24.0
 
-# Install jupyter-remote-desktop-proxy with compatible npm version
-RUN --mount=type=cache,target=/root/.cache/pip \
-    npm install -g npm@7.24.0 \
-    && pip install \
-        https://github.com/jupyterhub/jupyter-remote-desktop-proxy/archive/main.zip
+COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
+
+# Install HEFS FEWS Hub
+RUN  --mount=type=cache,target=/root/.cache/pip \
+    pip install \
+    /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
 
 # Override the default xstartup script with one that works for XFCE on AlmaLinux
 RUN echo '#!/bin/sh' > ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
@@ -105,15 +107,17 @@ RUN groupadd -g ${NB_GID} ${NB_USER} || true \
 # Copy in FEWS binaries from local directory
 COPY lib/fews/fews-NA-202102-115469-bin.zip /opt/fews/fews-NA-202102-115469-bin.zip
 RUN unzip /opt/fews/fews-NA-202102-115469-bin.zip -d /opt/fews/ \
-    && chown -R ${NB_USER}:${NB_GID} /opt/fews
+    && chown -R ${NB_USER}:${NB_GID} /opt/ \
+    && rm /opt/fews/fews-NA-202102-115469-bin.zip \
+    && rm -rf /opt/fews/windows
 
 # Panel dashboard setup
 COPY lib/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
 COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
 
 # Install HEFS FEWS Hub with TEEHR dependency
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
+# RUN --mount=type=cache,target=/root/.cache/pip \
+RUN pip install /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
 
 # Copy icon to standard location
 RUN mkdir -p /usr/share/pixmaps \
@@ -137,10 +141,16 @@ RUN mkdir -p /home/${NB_USER}/.vnc \
     && echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'export XDG_SESSION_TYPE=x11' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'export XDG_CURRENT_DESKTOP=XFCE' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
-    && echo '/usr/libexec/xfce-polkit &' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
-    && echo 'dbus-launch --exit-with-session startxfce4 &' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
+    && echo '# Start XFCE session with dbus' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
+    && echo 'exec dbus-launch --exit-with-session startxfce4' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && chmod +x /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/.vnc
+
+# Disable xfce-polkit autostart if it exists (it may come as a dependency)
+RUN mkdir -p /home/${NB_USER}/.config/autostart \
+    && echo '[Desktop Entry]' > /home/${NB_USER}/.config/autostart/xfce-polkit.desktop \
+    && echo 'Hidden=true' >> /home/${NB_USER}/.config/autostart/xfce-polkit.desktop \
+    && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/.config
 
 # Copy entrypoint script for AWS configuration
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

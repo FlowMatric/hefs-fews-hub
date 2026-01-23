@@ -14,26 +14,29 @@ packages = [
 include = [
     { path = "src/hefs_fews_hub/images/*.png", format = ["sdist", "wheel"] },
     { path = "src/hefs_fews_hub/geo/*.geojson", format = ["sdist", "wheel"] },
+    { path = "src/hefs_fews_hub/labextension/**/*", format = ["sdist", "wheel"] },
+    { path = "src/hefs_fews_hub/panel_dashboard_notebook.ipynb", format = ["sdist", "wheel"] },
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
+panel = "^1.5.2"
+ipyleaflet = "^0.19.2"
+s3fs = "^2024.10.0"
+ipywidgets = "^8.1.5"
+ipywidgets-bokeh = "^1.6.0"
+jupyter-server-proxy = "^4.4.0"
+plotly = "^6.5.2"
+jupyter-remote-desktop-proxy = "^3.0.1"
 
 [tool.poetry.group.dev.dependencies]
-boto3 = "^1.35.17"
 jupyterlab = "^4.2.5"
-ipywidgets = "^8.1.5"
-nbstripout = "^0.7.1"
-
-[tool.poetry.group.panel.dependencies]
-panel = "^1.5.2"
-watchfiles = "^0.24.0"
-jupyter-bokeh = "^4.0.5"
-ipyleaflet = "^0.19.2"
-ipywidgets-bokeh = "^1.6.0"
 
 [tool.poetry.scripts]
 start-dashboard = "hefs_fews_hub.start_dashboard:main"
+
+[tool.poetry.plugins."jupyter_serverproxy_servers"]
+panel-dashboard = "hefs_fews_hub.jupyter_server_proxy_config:setup_panel_dashboard"
 
 [build-system]
 requires = ["poetry-core"]

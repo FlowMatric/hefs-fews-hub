@@ -1,17 +1,22 @@
+# import debugpy; debugpy.listen(5678); debugpy.wait_for_client() # noqa
+import contextlib
 import json
 from pathlib import Path
 
 import panel as pn
 from ipyleaflet import Map, GeoJSON
 
-from hefs_fews_hub.dashboard_funcs import (
-    create_start_standalone_command,
-    write_shell_file,
-    s3_download_file,
-    write_fews_desktop_shortcut,
-    s3_download_directory_cli,
-    set_up_logger
-)
+from hefs_fews_hub.dashboard_funcs import install_fews_standalone
+
+with contextlib.suppress(Exception):
+    from hefs_fews_hub.dashboard_funcs import (
+        create_start_standalone_command,
+        write_shell_file,
+        s3_download_file,
+        write_fews_desktop_shortcut,
+        s3_download_directory_cli,
+        set_up_logger
+    )
 
 pn.extension("ipywidgets", sizing_mode="stretch_width")
 
@@ -54,7 +59,6 @@ def turn_on_indeterminate():
 
 def on_geojson_click(event, feature, **kwargs):
     rfc_selector.value = feature['properties']["BASIN_ID"]
-    return
 
 
 def get_marker_and_map():
@@ -86,57 +90,11 @@ def download_historical_data(event) -> None:
     logger.info("Data download complete.")
 
 
-def install_fews_standalone(event) -> None:
+def install_fews_standalone_pf(event) -> None:
     """Download standalone configuration from S3 to the working directory."""
     turn_on_indeterminate()
-    fews_download_dir = Path(download_dir_text.value)
-    if not fews_download_dir.exists():
-        logger.info(f"The directory: {fews_download_dir}, does not exist. Please create it first!")
-        raise ValueError(f"The directory: {fews_download_dir}, does not exist. Please create it first!")
-
-    # 1. Download sa from S3
-    logger.info(f"Downloading {rfc_selector.value} configuration to {fews_download_dir.as_posix()}...This will take a few minutes...")
-    s3_download_directory_cli(
-        prefix=f"{rfc_selector.value}/Config",
-        local=Path(fews_download_dir, f"{rfc_selector.value}/Config").as_posix(),
-    )
-    # 2. Create the bash command to run the standalone configuration
-    logger.info("Creating bash command to start FEWS...")
-    sa_dir_path = Path(fews_download_dir, rfc_selector.value)
-    bash_command_str = create_start_standalone_command(
-        fews_root_dir=FEWS_INSTALL_DIR.as_posix(),
-        configuration_dir=sa_dir_path.as_posix()
-    )
-    # 3. Write the command to start FEWS to a shell script
-    logger.info("Writing shell script to start FEWS...")
-    shell_script_filepath = Path(sa_dir_path, "start_fews_standalone.sh")
-    write_shell_file(shell_script_filepath, bash_command_str)
-
-    # 4. Copy in patch file for the downloaded standalone config.
-    logger.info("Downloading patch file and global properties...")
-    s3_download_file(
-        remote_filepath="fews-install/fews-NA-202102-125264-patch.jar",
-        local_filepath=Path(sa_dir_path, "fews-NA-202102-125264-patch.jar")
-    )
-    logger.info("Downloading sa_global.properties...Temporarily to Config dir.")
-    s3_download_file(
-        remote_filepath=f"{rfc_selector.value}/sa_global.properties",
-        local_filepath=Path(sa_dir_path, "Config", "sa_global.properties")
-    )
-    # 5. Create FEWS desktop shortcut that calls the shell script
-    desktop_shortcut_filepath = Path(
-        Path.home(),
-        "Desktop",
-        f"{sa_dir_path.name}.desktop"
-    )
-    logger.info(f"Creating FEWS desktop shortcut...{desktop_shortcut_filepath}")
-    write_fews_desktop_shortcut(
-        desktop_shortcut_filepath,
-        shell_script_filepath,
-        rfc_selector.value
-    )
+    install_fews_standalone(download_dir_text.value, rfc_selector.value)
     turn_off_indeterminate()
-    logger.info("Installation complete.")
     return
 
 
@@ -161,14 +119,15 @@ download_dir_text = pn.widgets.TextInput(
     value='/home/jovyan'
 )
 
-logger_filepath = Path(download_dir_text.value, "dashboard.log")
+logger_filepath = Path(download_dir_text.value, "dashboard2.log")
+print(f"Logging to: {logger_filepath}")
 logger = set_up_logger(logger_filepath)
 
 download_configs_button = pn.widgets.Button(
     name='Download Configs',
     button_type='primary'
 )
-download_configs_button.on_click(install_fews_standalone)
+download_configs_button.on_click(install_fews_standalone_pf)
 
 download_data_button = pn.widgets.Button(
     name='Download Data',
@@ -191,7 +150,7 @@ download_row = pn.Row(
 )
 
 column = pn.Column(
-    pn.panel(lmap, sizing_mode="stretch_both", min_height=500),
+    pn.pane.IPyWidget(lmap, sizing_mode="stretch_both", min_height=500),
     download_row,
     pn.Row(download_dir_text),
     pn.Row(indeterminate)

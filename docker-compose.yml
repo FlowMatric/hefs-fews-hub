@@ -17,7 +17,7 @@ services:
       - hefs-network
     restart: unless-stopped
     volumes:
-      - ./work:/home/jovyan/work
+      - ./.work:/home/jovyan/work
 
 networks:
   hefs-network:

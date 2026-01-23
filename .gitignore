@@ -172,3 +172,4 @@ cython_debug/
 .aws/
 credentials
 config
+.vscode

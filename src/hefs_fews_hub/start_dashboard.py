@@ -18,7 +18,10 @@ def main():
     print(f"Module path: {module_path}")
     # Start the Panel server
     panel_cmd = [
-        sys.executable, "-m", "panel", "serve", f"--port={args.port}", "--dev", "--show", str(module_path)
+        sys.executable, "-m", "panel", "serve",
+        f"--port={args.port}", 
+        # "--dev", 
+        str(module_path)
     ]
     panel_proc = subprocess.Popen(panel_cmd)
     time.sleep(10)

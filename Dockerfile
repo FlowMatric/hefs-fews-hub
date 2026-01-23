@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/var/cache/dnf \
 # Install TurboVNC (https://github.com/TurboVNC/turbovnc)
 ARG TURBOVNC_VERSION=3.1
 # RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
-COPY lib/turbovnc-3.1.x86_64.rpm turbovnc.rpm
+COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
 RUN dnf install -y turbovnc.rpm \
     && rm turbovnc.rpm \
     && ln -s /opt/TurboVNC/bin/* /usr/local/bin/
@@ -105,14 +105,14 @@ RUN groupadd -g ${NB_GID} ${NB_USER} || true \
     && mkdir -p /home/${NB_USER}
 
 # Copy in FEWS binaries from local directory
-COPY lib/fews/fews-NA-202102-115469-bin.zip /opt/fews/fews-NA-202102-115469-bin.zip
+COPY libs/fews/fews-NA-202102-115469-bin.zip /opt/fews/fews-NA-202102-115469-bin.zip
 RUN unzip /opt/fews/fews-NA-202102-115469-bin.zip -d /opt/fews/ \
     && chown -R ${NB_USER}:${NB_GID} /opt/ \
     && rm /opt/fews/fews-NA-202102-115469-bin.zip \
     && rm -rf /opt/fews/windows
 
 # Panel dashboard setup
-COPY lib/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
+COPY libs/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
 COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
 
 # Install HEFS FEWS Hub with TEEHR dependency

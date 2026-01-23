@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=HEFS-FEWS Dashboard
+Type=Application
+Exec=start-dashboard
+Terminal=false
+Icon=dashboard_icon2

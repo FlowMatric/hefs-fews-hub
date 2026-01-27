@@ -52,7 +52,7 @@ download_dir_text = pn.widgets.TextInput(
     name="Directory to download the data:", value="/home/jovyan"
 )
 
-logger_filepath = Path(download_dir_text.value, "dashboard2.log")
+logger_filepath = Path(download_dir_text.value, "hefs_fews_config_panel.log")
 print(f"Logging to: {logger_filepath}")
 logger = set_up_logger(logger_filepath)
 

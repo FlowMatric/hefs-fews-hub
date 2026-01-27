@@ -17,7 +17,7 @@
 #
 # **Additional Features:**
 #   - Includes AWS CLI for data access, Node.js for JupyterLab extensions, and other utilities (e.g., nano, Thunar file manager).
-#   - FEWS binaries and dashboard tools are pre-installed, with desktop shortcuts for easy access.
+#   - FEWS binaries and panel application tools are pre-installed, with desktop shortcuts for easy access.
 #
 # This image is intended for use on TEEHRHub or similar JupyterHub deployments, providing a seamless environment for hydrologic model execution and analysis.
 
@@ -47,7 +47,6 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     xorg-x11-xauth \
     xorg-x11-fonts-* \
     xorg-x11-utils \
-    firefox \
     curl \
     wget \
     git-lfs \
@@ -57,8 +56,8 @@ RUN --mount=type=cache,target=/var/cache/dnf \
 
 # Install TurboVNC (https://github.com/TurboVNC/turbovnc)
 ARG TURBOVNC_VERSION=3.1
-RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
-# COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
+# RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
+COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
 RUN dnf install -y turbovnc.rpm \
     && rm turbovnc.rpm \
     && ln -s /opt/TurboVNC/bin/* /usr/local/bin/
@@ -105,29 +104,13 @@ RUN unzip /opt/fews/fews-NA-202102-115469-bin.zip -d /opt/fews/ \
     && rm /opt/fews/fews-NA-202102-115469-bin.zip \
     && rm -rf /opt/fews/windows
 
-# Panel dashboard setup
-COPY libs/dashboard.desktop /opt/hefs_fews_dashboard/dashboard.desktop
-COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
-
+# Panel Application setup
+COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl hefs_fews_hub-0.1.0-py3-none-any.whl
 # Install HEFS FEWS Hub with TEEHR dependency
 # RUN --mount=type=cache,target=/root/.cache/pip \
-RUN pip install /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
+RUN pip install hefs_fews_hub-0.1.0-py3-none-any.whl \
+    && rm hefs_fews_hub-0.1.0-py3-none-any.whl
 
-# Copy icon to standard location (for desktop entry in XFCE)
-RUN mkdir -p /usr/share/pixmaps \
-    && python -c "import hefs_fews_hub; import shutil; from pathlib import Path; pkg_path = Path(hefs_fews_hub.__file__).parent; shutil.copy(pkg_path / 'images/configuration.svg', '/usr/share/pixmaps/configuration.svg')"
-    
-RUN chown -R ${NB_USER}:${NB_GID} /opt/hefs_fews_dashboard \
-&& chmod +x /opt/hefs_fews_dashboard/dashboard.desktop
-
-# Install dashboard.desktop to XFCE applications menu
-RUN mkdir -p /home/${NB_USER}/.local/share/applications \
-    && cp /opt/hefs_fews_dashboard/dashboard.desktop /home/${NB_USER}/.local/share/applications/ \
-    && mkdir -p /home/${NB_USER}/Desktop \
-    && cp /opt/hefs_fews_dashboard/dashboard.desktop /home/${NB_USER}/Desktop/ \
-    && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/.local \
-    && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/Desktop
-    
 # Override the default xstartup script with one that works for XFCE on AlmaLinux
 RUN echo '#!/bin/sh' > ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
     && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \

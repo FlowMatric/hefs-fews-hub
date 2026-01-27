@@ -38,5 +38,12 @@ else
     echo "To configure AWS, provide AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."
 fi
 
+# Disable xfce-polkit autostart if it exists (prevents PolicyKit Agent error)
+mkdir -p /home/jovyan/.config/autostart
+cat > /home/jovyan/.config/autostart/xfce-polkit.desktop <<EOF
+[Desktop Entry]
+Hidden=true
+EOF
+
 # Execute the main command
 exec "$@"

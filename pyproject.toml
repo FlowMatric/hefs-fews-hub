@@ -32,9 +32,6 @@ ipywidgets-bokeh = "^1.6.0"
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^4.2.5"
 
-[tool.poetry.scripts]
-start-dashboard = "hefs_fews_hub.start_dashboard:main"
-
 [tool.poetry.plugins."jupyter_serverproxy_servers"]
 panel-dashboard = "hefs_fews_hub.jupyter_server_proxy_config:setup_panel_dashboard"
 

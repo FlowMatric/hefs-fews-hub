@@ -2,21 +2,27 @@
 import contextlib
 import json
 from pathlib import Path
-
+import logging
 import panel as pn
+from panel.pane import IPyWidget
+
+# from ipywidgets_bokeh import IPyWidget
+from hefs_fews_hub.dashboard_funcs import install_fews_standalone
 from ipyleaflet import Map, GeoJSON
 
-from hefs_fews_hub.dashboard_funcs import install_fews_standalone
+
+FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+
+@pn.cache
+def reconfig_basic_config(format_=FORMAT, level=logging.INFO):
+    """(Re-)configure logging"""
+    logging.basicConfig(format=format_, level=level, force=True)
+    logging.info("Logging.basicConfig completed successfully")
+
 
 with contextlib.suppress(Exception):
-    from hefs_fews_hub.dashboard_funcs import (
-        create_start_standalone_command,
-        write_shell_file,
-        s3_download_file,
-        write_fews_desktop_shortcut,
-        s3_download_directory_cli,
-        set_up_logger
-    )
+    from hefs_fews_hub.dashboard_funcs import s3_download_directory_cli, set_up_logger
 
 pn.extension("ipywidgets", sizing_mode="stretch_width")
 
@@ -39,8 +45,16 @@ RFC_IDS = [
     "NWRFC",
     "OHRFC",
     "SERFC",
-    "WGRFC"
+    "WGRFC",
 ]
+
+download_dir_text = pn.widgets.TextInput(
+    name="Directory to download the data:", value="/home/jovyan"
+)
+
+logger_filepath = Path(download_dir_text.value, "dashboard2.log")
+print(f"Logging to: {logger_filepath}")
+logger = set_up_logger(logger_filepath)
 
 
 def turn_off_indeterminate():
@@ -58,7 +72,7 @@ def turn_on_indeterminate():
 
 
 def on_geojson_click(event, feature, **kwargs):
-    rfc_selector.value = feature['properties']["BASIN_ID"]
+    rfc_selector.value = feature["properties"]["BASIN_ID"]
 
 
 def get_marker_and_map():
@@ -82,10 +96,7 @@ def download_historical_data(event) -> None:
     logger.info(f"Downloading historical data to {fews_download_dir.as_posix()}...")
     s3_download_directory_cli(
         prefix=f"{rfc_selector.value}/historicalData",
-        local=Path(
-            fews_download_dir,
-            f"{rfc_selector.value}/cardfiles"
-        ).as_posix()
+        local=Path(fews_download_dir, f"{rfc_selector.value}/cardfiles").as_posix(),
     )
     logger.info("Data download complete.")
 
@@ -104,56 +115,46 @@ with open(RFC_BOUNDARIES) as f:
 
 geojson_layer = GeoJSON(
     data=geojson_data,
-    hover_style={
-        'color': 'red', 'dashArray': '0', 'fillOpacity': 0.6
-    },
+    hover_style={"color": "red", "dashArray": "0", "fillOpacity": 0.6},
 )
-lmap = get_marker_and_map()
-geojson_layer.on_click(on_geojson_click)
+try:
+    lmap = get_marker_and_map()
+    geojson_layer.on_click(on_geojson_click)
+except Exception as e:
+    logger.error(f"Error creating map: {e}")
+    lmap = pn.pane.Markdown(
+        "## Error loading map\n"
+        "Map could not be loaded. Please ensure that ipyleaflet is "
+        "installed and working correctly."
+    )
 
 # WIDGETS
 rfc_selector = pn.widgets.Select(name="", options=RFC_IDS, value=RFC_IDS[5])
 
-download_dir_text = pn.widgets.TextInput(
-    name='Directory to download the data:',
-    value='/home/jovyan'
-)
-
-logger_filepath = Path(download_dir_text.value, "dashboard2.log")
-print(f"Logging to: {logger_filepath}")
-logger = set_up_logger(logger_filepath)
 
 download_configs_button = pn.widgets.Button(
-    name='Download Configs',
-    button_type='primary'
+    name="Download Configs", button_type="primary"
 )
 download_configs_button.on_click(install_fews_standalone_pf)
 
-download_data_button = pn.widgets.Button(
-    name='Download Data',
-    button_type='primary'
-)
+download_data_button = pn.widgets.Button(name="Download Data", button_type="primary")
 download_data_button.on_click(download_historical_data)
 
 indeterminate = pn.indicators.Progress(
-    name='Indeterminate Progress',
+    name="Indeterminate Progress",
     active=False,
     visible=False,
     styles={"height": "15px"},
 )
 
 # LAYOUT
-download_row = pn.Row(
-    rfc_selector,
-    download_configs_button,
-    download_data_button
-)
+download_row = pn.Row(rfc_selector, download_configs_button, download_data_button)
 
 column = pn.Column(
-    pn.pane.IPyWidget(lmap, sizing_mode="stretch_both", min_height=500),
+    IPyWidget(lmap, sizing_mode="stretch_both", min_height=500),
     download_row,
     pn.Row(download_dir_text),
-    pn.Row(indeterminate)
+    pn.Row(indeterminate),
 )
 
 logo_path = Path(__file__).parent / "images" / "CIROHLogo_200x200.png"

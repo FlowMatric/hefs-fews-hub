@@ -23,11 +23,11 @@ python = ">=3.10,<3.14"
 panel = "^1.5.2"
 ipyleaflet = "^0.19.2"
 s3fs = "^2024.10.0"
-ipywidgets = "^8.1.5"
-ipywidgets-bokeh = "^1.6.0"
 jupyter-server-proxy = "^4.4.0"
 plotly = "^6.5.2"
 jupyter-remote-desktop-proxy = "^3.0.1"
+ipywidgets = "^8.1.8"
+ipywidgets-bokeh = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^4.2.5"

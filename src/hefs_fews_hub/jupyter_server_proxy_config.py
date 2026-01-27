@@ -17,6 +17,8 @@ def setup_panel_dashboard():
     pkg_path = Path(hefs_fews_hub.__file__).parent
     # Use the .py file instead of notebook - notebooks need a kernel for ipyleaflet
     dashboard_path = pkg_path / "panel_dashboard.py"
+    icon_path = pkg_path / "images" / "configuration.svg"
+    
     
     # Find panel executable
     panel_cmd = shutil.which("panel")
@@ -28,24 +30,30 @@ def setup_panel_dashboard():
             panel_cmd,
             "serve",
             str(dashboard_path),
+            "--port", "{port}",
             "--allow-websocket-origin=*",
-            "--address", "127.0.0.1",
-            "--log-level", "debug",
+            # "--log-level", "debug",
+            # "--show", "--autoreload"
         ],
         "timeout": 30,
         "absolute_url": False,
         "launcher_entry": {
             "enabled": True,
             "title": "HEFS FEWS Dashboard",
-            "category": "Other"
+            "category": "Notebook",
+            "icon_path": str(icon_path)
         },
         "environment": {
-            "BOKEH_ALLOW_WS_ORIGIN": "*"
+            "BOKEH_ALLOW_WS_ORIGIN": "*",
+            # "BOKEH_LOG_LEVEL" : "debug",
+            # "BOKEH_PY_LOG_LEVEL": "debug",
+            # "PANEL_LOG_LEVEL": "debug"
         }
     }
     
     print(f"[Panel Proxy] Dashboard path: {dashboard_path}", file=sys.stderr)
     print(f"[Panel Proxy] Panel command: {panel_cmd}", file=sys.stderr)
+    print(f"[Panel Proxy] Full command: {config['command']}", file=sys.stderr)
     print(f"[Panel Proxy] Config: {config}", file=sys.stderr)
     
     return config

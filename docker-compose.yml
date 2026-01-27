@@ -17,8 +17,10 @@ services:
       - hefs-network
     restart: unless-stopped
     volumes:
-      - ./.work:/home/jovyan/work
-
+      - ./.user_home:/home/jovyan
+volumes:
+  .user_home:
+  
 networks:
   hefs-network:
     driver: bridge

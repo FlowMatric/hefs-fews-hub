@@ -1,7 +1,25 @@
-# This Dockerfile aims to provide a Pangeo-style image with the VNC/Linux Desktop feature
-# It was constructed by following the instructions and copying code snippets laid out
-# and linked from here:
-# https://github.com/2i2c-org/infrastructure/issues/1444#issuecomment-1187405324
+#
+# HEFS-FEWS-Hub Container Image Description
+#
+# This container image is designed to support the exploration of HEFS ensembles using FEWS within a JupyterHub environment, as part of the CIROH-supported project.
+#
+# **Operating System:**
+#   - Based on AlmaLinux 8.10, chosen because FEWS officially supports Red Hat-based distributions, ensuring compatibility and stability for FEWS binaries.
+#
+# **JupyterLab Setup:**
+#   - Installs Miniconda and creates a dedicated Python environment for running JupyterLab and related Python tools.
+#   - JupyterLab is configured to run as the main user interface, providing access to notebooks and Python scripts for data analysis and dashboarding.
+#
+# **XFCE and VNC Desktop Environment:**
+#   - Installs a minimal XFCE desktop environment, providing a lightweight and user-friendly graphical interface.
+#   - TurboVNC is used to enable remote desktop access, allowing users to interact with the desktop environment through their browser or a VNC client.
+#   - This setup allows users to launch and interact with the FEWS standalone application in a familiar desktop environment, directly from the cloud.
+#
+# **Additional Features:**
+#   - Includes AWS CLI for data access, Node.js for JupyterLab extensions, and other utilities (e.g., nano, Thunar file manager).
+#   - FEWS binaries and dashboard tools are pre-installed, with desktop shortcuts for easy access.
+#
+# This image is intended for use on TEEHRHub or similar JupyterHub deployments, providing a seamless environment for hydrologic model execution and analysis.
 
 FROM almalinux:8.10
 # FROM 935462133478.dkr.ecr.us-east-2.amazonaws.com/teehr:v0.4-beta
@@ -39,8 +57,8 @@ RUN --mount=type=cache,target=/var/cache/dnf \
 
 # Install TurboVNC (https://github.com/TurboVNC/turbovnc)
 ARG TURBOVNC_VERSION=3.1
-# RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
-COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
+RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
+# COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
 RUN dnf install -y turbovnc.rpm \
     && rm turbovnc.rpm \
     && ln -s /opt/TurboVNC/bin/* /usr/local/bin/
@@ -71,37 +89,13 @@ ENV PATH=${NB_PYTHON_PREFIX}/bin:${PATH}
 RUN curl -sL https://rpm.nodesource.com/setup_20.x | bash - \
     && dnf install -y nodejs \
     && npm install -g npm@7.24.0
-
-COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
-
-# Install HEFS FEWS Hub
-RUN  --mount=type=cache,target=/root/.cache/pip \
-    pip install \
-    /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
-
-# Override the default xstartup script with one that works for XFCE on AlmaLinux
-RUN echo '#!/bin/sh' > ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '# Ensure DISPLAY is set (should be passed by vncserver)' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'if [ -z "$DISPLAY" ]; then' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '    export DISPLAY=:1' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'fi' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'unset SESSION_MANAGER' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'unset DBUS_SESSION_BUS_ADDRESS' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '# Give X server a moment to initialize' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'sleep 1' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && echo 'exec /usr/bin/xfce4-session' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
-    && chmod +x ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup
-
-# Create jovyan user
+    
+    # Create jovyan user
 ARG NB_USER=jovyan
 ARG NB_UID=1000
 ARG NB_GID=100
 RUN groupadd -g ${NB_GID} ${NB_USER} || true \
-    && useradd -m -s /bin/bash -u ${NB_UID} -g ${NB_GID} ${NB_USER} \
+&& useradd -m -s /bin/bash -u ${NB_UID} -g ${NB_GID} ${NB_USER} \
     && mkdir -p /home/${NB_USER}
 
 # Copy in FEWS binaries from local directory
@@ -119,10 +113,10 @@ COPY dist/hefs_fews_hub-0.1.0-py3-none-any.whl /opt/hefs_fews_dashboard/hefs_few
 # RUN --mount=type=cache,target=/root/.cache/pip \
 RUN pip install /opt/hefs_fews_dashboard/hefs_fews_hub-0.1.0-py3-none-any.whl
 
-# Copy icon to standard location
+# Copy icon to standard location (for desktop entry in XFCE)
 RUN mkdir -p /usr/share/pixmaps \
-    && python -c "import hefs_fews_hub; import shutil; from pathlib import Path; pkg_path = Path(hefs_fews_hub.__file__).parent; shutil.copy(pkg_path / 'images/dashboard_icon2.png', '/usr/share/pixmaps/dashboard_icon2.png')"
-
+    && python -c "import hefs_fews_hub; import shutil; from pathlib import Path; pkg_path = Path(hefs_fews_hub.__file__).parent; shutil.copy(pkg_path / 'images/configuration.svg', '/usr/share/pixmaps/configuration.svg')"
+    
 RUN chown -R ${NB_USER}:${NB_GID} /opt/hefs_fews_dashboard \
 && chmod +x /opt/hefs_fews_dashboard/dashboard.desktop
 
@@ -133,8 +127,25 @@ RUN mkdir -p /home/${NB_USER}/.local/share/applications \
     && cp /opt/hefs_fews_dashboard/dashboard.desktop /home/${NB_USER}/Desktop/ \
     && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/.local \
     && chown -R ${NB_USER}:${NB_GID} /home/${NB_USER}/Desktop
+    
+# Override the default xstartup script with one that works for XFCE on AlmaLinux
+RUN echo '#!/bin/sh' > ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '# Ensure DISPLAY is set (should be passed by vncserver)' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'if [ -z "$DISPLAY" ]; then' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '    export DISPLAY=:1' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'fi' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'unset SESSION_MANAGER' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'unset DBUS_SESSION_BUS_ADDRESS' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '# Give X server a moment to initialize' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'sleep 1' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo '' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && echo 'exec /usr/bin/xfce4-session' >> ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup \
+    && chmod +x ${NB_PYTHON_PREFIX}/lib/python3.11/site-packages/jupyter_remote_desktop_proxy/share/xstartup
 
-# Setup VNC for jovyan user (jupyter-remote-desktop-proxy will use this)
+    # Setup VNC for jovyan user (jupyter-remote-desktop-proxy will use this)
 RUN mkdir -p /home/${NB_USER}/.vnc \
     && echo '#!/bin/bash' > /home/${NB_USER}/.vnc/xstartup.turbovnc \
     && echo 'unset SESSION_MANAGER' >> /home/${NB_USER}/.vnc/xstartup.turbovnc \

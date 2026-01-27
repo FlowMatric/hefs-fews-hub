@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 from hefs_fews_hub import panel_dashboard
+import socket
 
 def main():
     parser = argparse.ArgumentParser(description="Start Panel dashboard and open in browser.")
@@ -23,6 +24,18 @@ def main():
         # "--dev", 
         str(module_path)
     ]
+    # Check if a similar Panel server process is already running on the given port
+
+    def is_port_in_use(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('localhost', port)) == 0
+
+    if is_port_in_use(args.port):
+        print(f"Panel server already running on port {args.port}.")
+        url = f"http://localhost:{args.port}/panel_dashboard"
+        print(f"Opening browser at: {url}")
+        subprocess.Popen([args.browser, url])
+        sys.exit(0)
     panel_proc = subprocess.Popen(panel_cmd)
     time.sleep(10)
 

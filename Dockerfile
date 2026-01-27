@@ -55,9 +55,9 @@ RUN --mount=type=cache,target=/var/cache/dnf \
     dnf clean all
 
 # Install TurboVNC (https://github.com/TurboVNC/turbovnc)
-ARG TURBOVNC_VERSION=3.1
-# RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
-COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
+# ARG TURBOVNC_VERSION=3.1
+RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc-${TURBOVNC_VERSION}.x86_64.rpm/download" -O turbovnc.rpm \
+# COPY libs/turbovnc-3.1.x86_64.rpm turbovnc.rpm
 RUN dnf install -y turbovnc.rpm \
     && rm turbovnc.rpm \
     && ln -s /opt/TurboVNC/bin/* /usr/local/bin/
